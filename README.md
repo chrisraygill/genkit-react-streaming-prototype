@@ -1,6 +1,13 @@
 # Genkit React Streaming Prototype
 
-A working prototype of a first-party React adapter (`useGenkitStream`) over [Genkit's](https://genkit.dev) `streamFlow` client. Demonstrates streaming **tool calls** end-to-end, rendered as a typed UI card the moment the model requests a tool and updated again when the result lands.
+A working prototype of first-party React adapters over [Genkit's](https://genkit.dev) `streamFlow` client. Demonstrates streaming **tool calls** end-to-end, rendered as a typed UI card the moment the model requests a tool and updated again when the result lands.
+
+Ships two hooks layered over the same primitive:
+
+- **`useGenkitStream<I, O, S>`** — generic. Works with any flow's `streamSchema` (progress events, custom data, structured deltas, anything). Returns `{ chunks, output, status, error, submit, abort, reset }`. No assumptions about chunk shape.
+- **`useGenkitChat<I, O>`** — opinionated. Assumes the flow forwards `ai.generate({ onChunk: c => sendChunk(c.toJSON()) })` so chunks follow the `GenerateResponseChunkData` shape. Wraps `useGenkitStream` and derives `text`, `reasoning`, `toolCalls` on top of it.
+
+Plus a pure framework-agnostic [`reducer.ts`](./packages/genkit-react/src/reducer.ts) the chat hook is built on — same module is reused by the [client-side Vercel AI SDK transport prototype](https://github.com/chrisraygill/genkit-ai-sdk-transport-prototype).
 
 The bundled sample is a weather agent: ask "what's the weather in Tokyo?", watch the `getWeather` tool call stream in (as a loading card), then resolve with live data from the [Open-Meteo](https://open-meteo.com) API.
 
@@ -41,16 +48,26 @@ Open <http://localhost:5173> and ask about the weather somewhere.
 
 ## What to look at
 
-**[`packages/genkit-react/src/useGenkitStream.ts`](./packages/genkit-react/src/useGenkitStream.ts)** — the entire hook. ~200 lines including types. Wraps `streamFlow` from `genkit/beta/client` and reduces chunks into:
+**[`packages/genkit-react/src/useGenkitChat.ts`](./packages/genkit-react/src/useGenkitChat.ts)** — chat-shaped hook (what the sample uses):
 
 ```ts
-const { text, toolCalls, status, error, submit, abort } = useGenkitStream<
+const { text, toolCalls, status, error, submit, abort } = useGenkitChat<
   { prompt: string },
   string
 >({ url: '/chat' });
 ```
 
 Each entry in `toolCalls` is `{ id, name, input, output?, state: 'call' | 'result' | 'error' }` and updates in place as the stream progresses.
+
+**[`packages/genkit-react/src/useGenkitStream.ts`](./packages/genkit-react/src/useGenkitStream.ts)** — generic primitive. Use this when your flow's `streamSchema` is anything other than the standard `GenerateResponseChunkData` shape (e.g. progress events for a long-running flow):
+
+```ts
+const { chunks, status } = useGenkitStream<MyInput, MyOutput, ProgressChunk>({ url });
+const latest = chunks.at(-1);
+return <ProgressBar value={latest?.done} max={latest?.total} />;
+```
+
+**[`packages/genkit-react/src/reducer.ts`](./packages/genkit-react/src/reducer.ts)** — pure framework-agnostic reducer. Exports `applyChunk(state, chunk)` and `flushInFlightToolsToError(state)`. Importable from non-React contexts (the [AI SDK transport prototype](https://github.com/chrisraygill/genkit-ai-sdk-transport-prototype) imports it directly to translate Genkit chunks into Vercel `UIMessageChunk`s).
 
 **[`web/src/App.tsx`](./web/src/App.tsx)** — usage. The interesting bit is the dispatch on tool name:
 
@@ -103,7 +120,7 @@ The first browser verification caught a real bug in the hook's reducer: when a t
 
 ## Status
 
-This is a **prototype** for design discussion, not a published package. The `@genkit-react-proto/react` name is a placeholder. If this approach lands, the real package would live in the Genkit monorepo as `@genkit-ai/react` and a `@genkit-ai/client-core` reducer would be factored out so Vue / Svelte / Angular adapters share the same logic.
+This is a **prototype** for design discussion, not a published package. The `@genkit-react-proto/react` name is a placeholder. If this approach lands, the real package would live in the Genkit monorepo as `@genkit-ai/react`. The pure `reducer.ts` would graduate to a separate `@genkit-ai/client-core` so Vue / Svelte / Angular adapters and the [Vercel AI SDK transport](https://github.com/chrisraygill/genkit-ai-sdk-transport-prototype) share the same chunk-walking logic.
 
 ## License
 

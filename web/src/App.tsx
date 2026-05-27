@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useGenkitStream } from '@genkit-react-proto/react';
+import { useGenkitChat } from '@genkit-react-proto/react';
 import { WeatherCard } from './components/WeatherCard.js';
 import { ToolCardGeneric } from './components/ToolCardGeneric.js';
 
@@ -15,7 +15,7 @@ const SUGGESTIONS = [
 
 export default function App() {
   const [input, setInput] = useState('');
-  const { text, toolCalls, status, error, submit, abort } = useGenkitStream<
+  const { text, toolCalls, status, error, submit, abort } = useGenkitChat<
     { prompt: string },
     string
   >({ url: API_URL });
@@ -34,7 +34,7 @@ export default function App() {
       <h1>Genkit React Streaming Prototype</h1>
       <p className="subtitle">
         Type a weather question. The agent streams text + tool calls; the{' '}
-        <code>useGenkitStream</code> hook reduces them into reactive state.
+        <code>useGenkitChat</code> hook reduces them into reactive state.
       </p>
 
       <div className="input-row">
