@@ -17,9 +17,10 @@ export function WeatherCard({ toolCall }: { toolCall: ToolCall }) {
   const input = (toolCall.input ?? {}) as WeatherToolInput;
   const output = toolCall.output as WeatherToolOutput | undefined;
   const isLoading = toolCall.state === 'call';
+  const isError = toolCall.state === 'error';
 
   return (
-    <div className={`weather-card ${isLoading ? 'loading' : ''}`}>
+    <div className={`weather-card ${isLoading ? 'loading' : ''} ${isError ? 'errored' : ''}`}>
       <div className="tool-label">Tool call · getWeather</div>
       <div className="location">
         {output?.location ?? input.location ?? 'Locating...'}
@@ -35,6 +36,8 @@ export function WeatherCard({ toolCall }: { toolCall: ToolCall }) {
             </span>
           </div>
         </>
+      ) : isError ? (
+        <div className="spinner">Could not load forecast</div>
       ) : (
         <div className="spinner">Fetching forecast…</div>
       )}

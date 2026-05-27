@@ -147,6 +147,11 @@ export function useGenkitStream<I = unknown, O = unknown>(
           if (controller.signal.aborted) {
             return;
           }
+          // Flush any in-flight tool calls to error state so UI cards stuck
+          // in the 'call' state (spinner) can render an error instead.
+          setToolCalls((prev) =>
+            prev.map((tc) => (tc.state === 'call' ? { ...tc, state: 'error' } : tc))
+          );
           setError(err instanceof Error ? err : new Error(String(err)));
           setStatus('error');
         }

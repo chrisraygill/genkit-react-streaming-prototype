@@ -141,6 +141,12 @@ body {
   opacity: 0.6;
 }
 
+.weather-card.errored {
+  opacity: 0.5;
+  background: linear-gradient(135deg, #3a1e1e 0%, #4a2d2d 100%);
+  border-color: #632a2a;
+}
+
 .weather-card .tool-label {
   font-size: 0.7rem;
   text-transform: uppercase;

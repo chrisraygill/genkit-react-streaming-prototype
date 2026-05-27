@@ -77,17 +77,29 @@ await ai.generate({
 
 That `sendChunk` forward is the entire server-side contract. Genkit handles tool execution automatically; both the tool request and tool response arrive as chunks the client can observe.
 
-## Verified capabilities
+## Verified end-to-end
 
-Hand-verified end-to-end via curl + browser (see `PROPOSAL.md` for the full capability matrix with file:line cites into the Genkit source):
+Verified in a browser (Playwright + headless Chromium) and via curl. See [`PROPOSAL.md`](./PROPOSAL.md) for the full capability matrix with file:line citations into the Genkit source.
 
-- Text streaming
-- Tool requests (with streaming partial args supported by core, though Gemini emits full args)
-- Tool responses (automatic, after Genkit executes the tool)
-- Cancellation via `AbortController`
-- Errors surfaced to the hook
+Confirmed working:
+
+- Text streaming, merged into a single bubble as deltas arrive
+- Tool requests rendered as a loading card from the streamed input (`Tokyo`) before the tool runs
+- Tool responses upgrading the same card in place with real data
+- Cancellation via `AbortController` (Stop button returns the hook to `idle` with no leaked late chunks)
+- Tool errors surface as a card in `state: 'error'` (red tint, "Could not load forecast") rather than spinning forever
+- Empty / whitespace input correctly disables the Send button
+- Zero React console warnings, zero page errors across happy path + 3 probes
 
 Not yet wired in this prototype (but possible with the existing protocol): reasoning chunks, partial structured output, multi-turn chat, resume-by-streamId.
+
+### Known limitations / friction found while building
+
+- **Tool-thrown `UserFacingError` messages get sanitized to `"INTERNAL: Internal Error"` on the wire.** The tool throws a descriptive message ("Could not find a location named X. Try a city name like..."), but the express handler sends back the generic INTERNAL fallback. `getCallableJSON` recognizes the same error correctly when called directly, so something in the tool-execution path strips the `GenkitError` identity before it reaches the handler. Filed as a finding in PROPOSAL.md to be raised upstream against Genkit core. The prototype's hook correctly transitions the tool-call card to `error` state regardless, so the UX still degrades gracefully.
+
+### The hook bug we found
+
+The first browser verification caught a real bug in the hook's reducer: when a tool threw mid-stream, the resulting `ToolCall` got stuck in `state: 'call'` forever because no `toolResponse` chunk ever arrived. The fix (in [`useGenkitStream.ts`](./packages/genkit-react/src/useGenkitStream.ts) `submit`'s catch block) is to map all in-flight `'call'` entries to `'error'`. Trivial in retrospect, but easy to miss without an end-to-end test that exercises the tool-error path. Worth baking into the official adapter from day one.
 
 ## Status
 

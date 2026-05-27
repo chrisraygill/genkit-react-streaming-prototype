@@ -3,6 +3,7 @@
 **Status:** Draft
 **Author:** (tbd)
 **Date:** 2026-05-27
+**Prototype:** <https://github.com/chrisraygill/genkit-react-streaming-prototype>
 
 ## Summary
 
@@ -24,7 +25,9 @@ Developers evaluating Genkit against LangChain or the Vercel AI SDK hit this wal
 
 ## Prior art
 
-### LangChain `useStream` (`@langchain/react`)
+### LangChain `useStream` (`@langchain/langgraph-sdk/react`)
+
+Docs: [LangGraph `useStream` React integration guide](https://langchain-ai.github.io/langgraphjs/cloud/how-tos/use_stream_react/) · [API reference](https://reference.langchain.com/javascript/langchain-langgraph-sdk/react/useStream)
 
 LangChain's React hook for LangGraph agents exposes a reactive `toolCalls` array:
 
@@ -42,6 +45,8 @@ Each tool call surfaces as `{ id, name, args, result, state }` and updates in pl
 Notable: LangChain is React-only for `useStream`. Their multi-SDK story in the UI patterns gallery (React / Vue / Svelte / Angular tabs) is delivered via iframe embeds of separate playground apps, not a true multi-framework client SDK.
 
 ### Vercel AI SDK (`@ai-sdk/react`, `@ai-sdk/vue`, `@ai-sdk/svelte`)
+
+Docs: [`useChat` API reference](https://ai-sdk.dev/docs/reference/ai-sdk-ui/use-chat) · [Chatbot Tool Usage guide](https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-tool-usage)
 
 Vercel ships first-party adapters for three frameworks, all wrapping the same wire protocol:
 
@@ -144,10 +149,19 @@ Each is a few dozen lines once the core adapter exists. Without it, every Genkit
 - **Versioning.** Adapter packages need to track core `genkit` SemVer. Monorepo + synchronized releases (already the pattern) makes this manageable.
 - **Maintenance cost of four frameworks.** Realistic minimum is React + one other (Vue or Svelte) at launch, with Angular and additional frameworks following demand. The core reducer is the expensive part; per-framework shells are cheap.
 
+## Findings from the prototype
+
+Building [the prototype](https://github.com/chrisraygill/genkit-react-streaming-prototype) end-to-end (verified in a browser with Playwright) surfaced two issues worth folding into the design discussion:
+
+1. **The hook's reducer must flush in-flight tool calls when the stream errors.** A tool throwing mid-stream produces no `toolResponse` chunk; the naive reducer leaves the UI card stuck in `state: 'call'` forever. Fix: in the error branch, map all in-flight `'call'` entries to `'error'`. Trivial once observed, but easy to miss without an end-to-end test that exercises the tool-error path. Worth baking into the official adapter from day one (and into the suggested `MockGenkitStream` test fixture).
+
+2. **`UserFacingError` thrown from inside a tool currently gets sanitized to `"INTERNAL: Internal Error"` on the wire**, even though `getCallableJSON` correctly serializes the same error when invoked directly. The express handler ([`plugins/express/src/index.ts:218-222`](https://github.com/firebase/genkit/blob/main/js/plugins/express/src/index.ts#L218-L222)) calls `getCallableJSON(e)`, which checks `instanceof GenkitError` and should return `{status, message}` from `toJSON()` — but something in the tool-execution pipeline ([`ai/src/generate/resolve-tool-requests.ts:175-198`](https://github.com/firebase/genkit/blob/main/js/ai/src/generate/resolve-tool-requests.ts#L175-L198)) strips the `GenkitError` identity before it reaches the handler. This is a Genkit-core friction item, not an adapter concern, but **worth filing upstream** — tool authors today can't produce useful client-facing error messages no matter what hook is consuming the stream.
+
 ## Next steps
 
-1. Prototype `@genkit-ai/react` as a standalone repo with a working sample app that demonstrates tool-call card rendering end-to-end.
+1. ~~Prototype `@genkit-ai/react` as a standalone repo with a working sample app that demonstrates tool-call card rendering end-to-end.~~ ✅ Done: <https://github.com/chrisraygill/genkit-react-streaming-prototype>
 2. Port `js/testapps/next` to use the prototype hook; measure LOC reduction and DX delta.
 3. Draft a docs page mirroring LangChain's "Tool calling" pattern, using the new hook.
 4. Decide on launch framework set (recommend: React + Svelte for v1; Vue + Angular in a follow-up).
 5. File follow-up proposals for streamed trace URLs and a dedicated interrupt chunk type.
+6. File the `UserFacingError`-from-tool sanitization bug against Genkit core.

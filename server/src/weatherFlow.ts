@@ -1,4 +1,4 @@
-import { z } from 'genkit';
+import { UserFacingError, z } from 'genkit';
 import { ai, MODEL } from './genkit.js';
 
 const WeatherInputSchema = z.object({
@@ -52,7 +52,10 @@ export const getWeather = ai.defineTool(
       results?: Array<{ name: string; latitude: number; longitude: number; country?: string }>;
     };
     if (!geo.results || geo.results.length === 0) {
-      throw new Error(`Could not find a location named "${location}".`);
+      throw new UserFacingError(
+        'NOT_FOUND',
+        `Could not find a location named "${location}". Try a city name like "Tokyo" or "San Francisco".`
+      );
     }
     const place = geo.results[0];
 
